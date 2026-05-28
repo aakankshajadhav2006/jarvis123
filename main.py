@@ -1,6 +1,7 @@
 import os
 import eel
 import subprocess
+import sys
 
 # Import core engine modules
 from engine.features import speak, playAssistantSound
@@ -38,17 +39,28 @@ def start():
     """Start the Jarvis assistant application."""
 
     # Initialize Eel with the www directory
+    print("Initializing Jarvis...", flush=True)
+    sys.stdout.flush()
     eel.init("www")
+    print("Eel initialized successfully", flush=True)
+    sys.stdout.flush()
 
-    # Play startup sound
-    playAssistantSound()
+    # Play startup sound (non-blocking)
+    try:
+        import threading
+        sound_thread = threading.Thread(target=playAssistantSound, daemon=True)
+        sound_thread.start()
+    except Exception as e:
+        print(f"Sound playback skipped: {e}")
 
     @eel.expose
     def init():
         """Initialize Jarvis - exposed to frontend."""
+        print("Frontend initialized")
+
         # Run device connection batch file
         try:
-            subprocess.call([r'device.bat'], shell=True)
+            subprocess.call([r'device.bat'], shell=True, timeout=5)
         except Exception as e:
             print(f"Device connection warning: {e}")
 
@@ -57,10 +69,8 @@ def start():
 
         # Check if face authentication is available
         if AUTH_AVAILABLE:
-            speak("Ready for Face Authentication")
-
             try:
-                # Attempt face authentication
+                speak("Ready for Face Authentication")
                 flag = recoganize.AuthenticateFace()
 
                 if flag == 1:
@@ -72,7 +82,6 @@ def start():
                     speak("Face Authentication Failed. Starting in basic mode.")
                     eel.hideFaceAuth()
                     eel.hideFaceAuthSuccess()
-
             except Exception as e:
                 print(f"Face auth error: {e}")
                 speak("Face authentication error. Starting in basic mode.")
@@ -113,19 +122,38 @@ def start():
         """Save PDF summary to database."""
         try:
             # Store in Supabase or local database
-            # For now, return success (database integration can be added later)
             print(f"Summary saved: {summary_data.get('summary', 'N/A')[:100]}...")
             return {'success': True}
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
-    # Open browser with the app
+    # Open browser with the app (Windows only)
     try:
-        os.system('start msedge.exe --app="http://localhost:8000/index.html"')
-    except Exception:
-        # Fallback to default browser
-        import webbrowser
-        webbrowser.open('http://localhost:8000/index.html')
+        if os.name == 'nt':
+            os.system('start msedge.exe --app="http://localhost:8000/index.html"')
+    except Exception as e:
+        print(f"Browser launch warning: {e}")
+
+    # Start Eel server
+    print("=" * 60, flush=True)
+    print("Jarvis is starting...", flush=True)
+    print("Open your browser and go to: http://localhost:8000", flush=True)
+    print("=" * 60, flush=True)
+    sys.stdout.flush()
 
     # Start Eel application
-    eel.start('index.html', mode=None, host='localhost', port=8000, block=True)
+    try:
+        eel.start('index.html', mode=None, host='localhost', port=8000, block=True)
+    except KeyboardInterrupt:
+        print("\nJarvis shutting down...")
+    except Exception as e:
+        print(f"Error starting Eel: {e}")
+        raise
+
+
+# ============================================
+# Entry Point
+# ============================================
+
+if __name__ == '__main__':
+    start()

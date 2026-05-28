@@ -4,13 +4,40 @@ Contains essential functions for voice interaction, audio playback, and hotword 
 """
 import eel
 import pyttsx3
-import speech_recognition as sr
-from playsound import playsound
-import threading
-import pvporcupine
-import struct
-import pyaudio
 import os
+
+# Try importing optional dependencies
+try:
+    import speech_recognition as sr
+    SR_AVAILABLE = True
+except ImportError:
+    SR_AVAILABLE = False
+    print("Warning: SpeechRecognition not available. Voice input disabled.")
+
+try:
+    from playsound import playsound
+    PLAYSOUND_AVAILABLE = True
+except ImportError:
+    PLAYSOUND_AVAILABLE = False
+    playsound = None
+    print("Warning: playsound not available. Audio playback disabled.")
+
+try:
+    import pvporcupine
+    PVPORCUPINE_AVAILABLE = True
+except ImportError:
+    PVPORCUPINE_AVAILABLE = False
+    print("Warning: PvPorcupine not available. Hotword detection disabled.")
+
+try:
+    import pyaudio
+    PYAUDIO_AVAILABLE = True
+except ImportError:
+    PYAUDIO_AVAILABLE = False
+    print("Warning: PyAudio not available. Audio features may be limited.")
+
+import threading
+import struct
 
 # Global TTS engine instance
 _tts_engine = None
@@ -53,8 +80,14 @@ def speak(text, lang='en'):
 
 def playAssistantSound():
     """Play the assistant activation sound."""
+    if not PLAYSOUND_AVAILABLE:
+        print("Sound playback not available (playsound module missing)")
+        return
+
     try:
-        sound_path = os.path.join(os.path.dirname(__file__), '..', 'www', 'assets', ' activation_sound.mp3')
+        sound_path = os.path.join(os.path.dirname(__file__), '..', 'www', 'assets', 'activation_sound.mp3')
+        sound_path = os.path.abspath(sound_path)
+
         if os.path.exists(sound_path):
             playsound(sound_path)
         else:
@@ -73,6 +106,10 @@ def listen(lang='en'):
     Returns:
         str: Recognized text or empty string if failed
     """
+    if not SR_AVAILABLE:
+        print("Speech recognition not available")
+        return ""
+
     recognizer = sr.Recognizer()
 
     try:
@@ -115,10 +152,18 @@ def hotword():
     Continuously listen for hotword activation.
     Runs in a separate process from the main UI.
     """
+    if not PVPORCUPINE_AVAILABLE or not PYAUDIO_AVAILABLE:
+        print("Hotword detection not available (missing dependencies)")
+        return
+
+    porcupine = None
+    pa = None
+    audio_stream = None
+
     try:
         # Initialize Porcupine for hotword detection
         porcupine = pvporcupine.create(
-            access_key='YOUR_PICOVOICE_ACCESS_KEY',
+            access_key=os.getenv('PICOVOICE_ACCESS_KEY', 'YOUR_PICOVOICE_ACCESS_KEY'),
             keyword_paths=['path/to/jarvis.ppn']
         )
 
@@ -152,9 +197,12 @@ def hotword():
         print(f"Error in hotword listener: {e}")
     finally:
         try:
-            audio_stream.close()
-            pa.terminate()
-            porcupine.delete()
+            if audio_stream:
+                audio_stream.close()
+            if pa:
+                pa.terminate()
+            if porcupine:
+                porcupine.delete()
         except:
             pass
 
