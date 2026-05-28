@@ -2,6 +2,11 @@ import os
 import eel
 import subprocess
 import sys
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+print("Environment variables loaded", flush=True)
 
 # Import core engine modules
 from engine.features import speak, playAssistantSound

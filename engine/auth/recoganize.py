@@ -7,6 +7,14 @@ import os
 import numpy as np
 from pathlib import Path
 
+# Check if face module is available
+try:
+    from cv2 import face
+    FACE_MODULE_AVAILABLE = True
+except (ImportError, AttributeError):
+    FACE_MODULE_AVAILABLE = False
+    print("Warning: OpenCV face module not available. face authentication disabled.")
+
 
 class FaceAuthenticator:
     """Handles face authentication using OpenCV."""
@@ -15,7 +23,12 @@ class FaceAuthenticator:
         self.face_classifier = cv2.CascadeClassifier(
             cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
         )
-        self.recognizer = cv2.face.LBPHFaceRecognizer_create()
+
+        if FACE_MODULE_AVAILABLE:
+            self.recognizer = cv2.face.LBPHFaceRecognizer_create()
+        else:
+            self.recognizer = None
+
         self.training_data_dir = Path(__file__).parent.parent.parent / 'training_data'
 
     def train_model(self, user_name='default'):
@@ -28,6 +41,10 @@ class FaceAuthenticator:
         Returns:
             bool: Training success status
         """
+        if not FACE_MODULE_AVAILABLE or not self.recognizer:
+            print("Face training not available (missing opencv-contrib-python)")
+            return False
+
         try:
             if not self.training_data_dir.exists():
                 self.training_data_dir.mkdir()
@@ -41,7 +58,6 @@ class FaceAuthenticator:
 
             print(f"Capturing face samples for {user_name}...")
             print("Look at the camera and move your face slightly...")
-            eel.showFaceAuth()
 
             while sample_count < 50:
                 ret, frame = camera.read()
@@ -98,6 +114,10 @@ class FaceAuthenticator:
         Returns:
             int: 1 if authenticated, 0 if failed
         """
+        if not FACE_MODULE_AVAILABLE or not self.recognizer:
+            print("Face authentication not available (missing opencv-contrib-python)")
+            return 0
+
         try:
             # Load trained model
             model_path = Path(__file__).parent.parent.parent / 'training_data' / 'default_model.yml'
